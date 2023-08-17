@@ -35,11 +35,6 @@ RUN pip install --upgrade --no-cache-dir pip
 RUN pip install --upgrade --no-cache-dir torch==2.0.1+cu118 torchvision==0.15.2+cu118 torchaudio==2.0.2 --index-url https://download.pytorch.org/whl/cu118
 RUN pip install --upgrade --no-cache-dir jupyterlab ipywidgets jupyter-archive jupyter_contrib_nbextensions triton xformers==0.0.18 gdown
 
-# Set up Jupyter Notebook
-RUN pip install notebook==6.5.5
-RUN jupyter contrib nbextension install --user && \
-    jupyter nbextension enable --py widgetsnbextension
-
 RUN python -m venv /venv
 ENV PATH="/venv/bin:$PATH"
 
@@ -48,23 +43,35 @@ RUN git clone https://github.com/comfyanonymous/ComfyUI.git && \
     cd /ComfyUI && \
     pip install -r requirements.txt
 
-#Re-Install? TODO: Figure out why it says it is not installed.
-RUN pip install torchvision
-
-# Create necessary directories and copy necessary files
-RUN set -e && mkdir -p /root/.cache/huggingface && mkdir /comfy-models
-COPY --from=hf-cache /root/.cache/huggingface /root/.cache/huggingface
-COPY --from=sd-models /SDv1-5.ckpt /comfy-models/v1-5-pruned-emaonly.ckpt
-COPY --from=sd-models /SDv2-768.ckpt /comfy-models/SDv2-768.ckpt
-RUN wget https://huggingface.co/stabilityai/stable-diffusion-xl-base-1.0/resolve/main/sd_xl_base_1.0.safetensors -O /comfy-models/sd_xl_base_1.0.safetensors && \
-    wget https://huggingface.co/stabilityai/stable-diffusion-xl-refiner-1.0/resolve/main/sd_xl_refiner_1.0.safetensors -O /comfy-models/sd_xl_refiner_1.0.safetensors
-
 # NGINX Proxy
 COPY --from=proxy nginx.conf /etc/nginx/nginx.conf
 COPY --from=proxy readme.html /usr/share/nginx/html/readme.html
-
-# Copy the README.md
 COPY README.md /usr/share/nginx/html/README.md
+
+# Create necessary directories and copy necessary files
+RUN set -e && mkdir -p /root/.cache/huggingface
+# Convenience move the models folder to the root
+RUN ln -s /workspace/ComfyUI/models /comfy-models
+RUN ln -s /workspace/ComfyUI/custom_nodes /custom_nodes
+
+COPY --from=hf-cache /root/.cache/huggingface /root/.cache/huggingface
+COPY --from=sd-models /SDv1-5.ckpt /comfy-models/v1-5-pruned-emaonly.ckpt
+
+# RUN wget https://huggingface.co/stabilityai/stable-diffusion-xl-base-1.0/resolve/main/sd_xl_base_1.0.safetensors -O /comfy-models/sd_xl_base_1.0.safetensors && \
+#     wget https://huggingface.co/stabilityai/stable-diffusion-xl-refiner-1.0/resolve/main/sd_xl_refiner_1.0.safetensors -O /comfy-models/sd_xl_refiner_1.0.safetensors
+
+RUN wget https://huggingface.co/XpucT/Deliberate/blob/main/Deliberate_v2.safetensors -O /comfy-models/checkpoints/Deliberate_v2.safetensors
+RUN wget https://huggingface.co/digiplay/AbsoluteReality_v1.8.1/blob/main/absolutereality_v181.safetensors -O /comfy-models/checkpoints/absolutereality_v181.safetensors
+
+# Custom ComfyUI Nodes
+RUN git clone https://github.com/ltdrdata/ComfyUI-Impact-Pack.git /custom_nodes/ComfyUI-Impact-Pack
+RUN git clone https://github.com/LucianoCirino/efficiency-nodes-comfyui.git /custom_nodes/efficiency-nodes-comfyui
+RUN git clone https://github.com/space-nuko/ComfyUI-OpenPose-Editor.git /custom_nodes/ComfyUI-OpenPose-Editor
+RUN git clone https://github.com/Fannovel16/comfy_controlnet_preprocessors.git /custom_nodes/comfy_controlnet_preprocessors
+
+#Re-Install? TODO: Figure out why it says it is not installed.
+RUN pip install torchvision
+
 
 # Start Scripts
 COPY pre_start.sh /pre_start.sh
